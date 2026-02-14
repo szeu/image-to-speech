@@ -1,8 +1,11 @@
-# app.py - FIXED VERSION (Pure Hugging Face TTS)
+# app.py - FIXED VERSION (Pure Hugging Face TTS with Autoplay Audio)
 import streamlit as st
 from transformers import pipeline
 from PIL import Image
 import numpy as np
+import base64
+import io
+import wave
 
 # Page config
 st.set_page_config(page_title="Vision Assistant", page_icon="🦯", layout="centered")
@@ -38,19 +41,33 @@ if photo is not None:
     st.subheader("📝 AI Description:")
     st.success(description)
 
-    # ==================== Text-to-Speech (FIXED) ====================
+    # ==================== Text-to-Speech (FIXED with Autoplay) ====================
     with st.spinner("Converting to speech..."):
         speech = tts_pipe(description)
         # speech["audio"] is usually shape (1, samples) or (samples,)
         audio_data = np.squeeze(speech["audio"])  # Ensure 1D numpy array
         sample_rate = speech["sampling_rate"]
 
-    # Play directly from numpy array (NO sample_rate warning!)
-    st.audio(audio_data, sample_rate=sample_rate)
-    st.info("🔊 Audio is playing automatically")
+        # Create WAV bytes in memory for embedding
+        buffer = io.BytesIO()
+        with wave.open(buffer, 'wb') as wf:
+            wf.setnchannels(1)  # Mono
+            wf.setsampwidth(2)  # 16-bit
+            wf.setframerate(sample_rate)
+            wf.writeframes((audio_data * 32767).astype(np.int16).tobytes())  # Scale to int16
 
-    if st.button("🔊 Speak Again"):
-        st.audio(audio_data, sample_rate=sample_rate)
+        audio_bytes = buffer.getvalue()
+        audio_base64 = base64.b64encode(audio_bytes).decode('utf-8')
+
+    # Embed HTML audio with autoplay
+    audio_html = f"""
+    <audio autoplay>
+        <source src="data:audio/wav;base64,{audio_base64}" type="audio/wav">
+        Your browser does not support the audio element.
+    </audio>
+    """
+    st.markdown(audio_html, unsafe_allow_html=True)
+    st.info("🔊 Audio is playing automatically")
 
 else:
     st.info("👆 Click the camera button above to start")
