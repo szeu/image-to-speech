@@ -1,8 +1,8 @@
-# app.py
+# app.py - FIXED VERSION (Pure Hugging Face TTS)
 import streamlit as st
 from transformers import pipeline
 from PIL import Image
-import io
+import numpy as np
 
 # Page config
 st.set_page_config(page_title="Vision Assistant", page_icon="🦯", layout="centered")
@@ -38,19 +38,21 @@ if photo is not None:
     st.subheader("📝 AI Description:")
     st.success(description)
 
-    # ==================== Text-to-Speech ====================
+    # ==================== Text-to-Speech (FIXED) ====================
     with st.spinner("Converting to speech..."):
         speech = tts_pipe(description)
-        audio_bytes = io.BytesIO(speech["audio"][0].tobytes())  # Convert to bytes
-        audio_bytes.seek(0)
+        # speech["audio"] is usually shape (1, samples) or (samples,)
+        audio_data = np.squeeze(speech["audio"])  # Ensure 1D numpy array
+        sample_rate = speech["sampling_rate"]
 
-    st.audio(audio_bytes, format="audio/wav", sample_rate=speech["sampling_rate"])
+    # Play directly from numpy array (NO sample_rate warning!)
+    st.audio(audio_data, sample_rate=sample_rate)
     st.info("🔊 Audio is playing automatically")
 
     if st.button("🔊 Speak Again"):
-        st.audio(audio_bytes, format="audio/wav", sample_rate=speech["sampling_rate"])
+        st.audio(audio_data, sample_rate=sample_rate)
 
 else:
     st.info("👆 Click the camera button above to start")
 
-st.caption("Model: BLIP Image Captioning & MMS TTS (Hugging Face)")
+st.caption("Models: BLIP Image Captioning + MMS TTS (Hugging Face) | Sampling rate: 16kHz")
