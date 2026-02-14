@@ -2,7 +2,6 @@
 import streamlit as st
 from transformers import pipeline
 from PIL import Image
-from gtts import gTTS
 import io
 
 # Page config
@@ -11,14 +10,19 @@ st.set_page_config(page_title="Vision Assistant", page_icon="🦯", layout="cent
 st.title("🗣️ Vision Assistant for the Blind")
 st.markdown("**Take a photo → AI describes the objects & scene → Speaks it out loud**")
 
-# Cache the model (loads only once)
+# Cache the models (loads only once)
 @st.cache_resource
 def load_caption_model():
     return pipeline("image-to-text", 
                     model="Salesforce/blip-image-captioning-base",
                     device="cpu")   # Change to "cuda" if you have GPU
 
+@st.cache_resource
+def load_tts_model():
+    return pipeline("text-to-speech", model="facebook/mms-tts-eng")
+
 captioner = load_caption_model()
+tts_pipe = load_tts_model()
 
 # Webcam Capture
 photo = st.camera_input("**Take a Photo**", label_visibility="visible")
@@ -36,18 +40,17 @@ if photo is not None:
 
     # ==================== Text-to-Speech ====================
     with st.spinner("Converting to speech..."):
-        tts = gTTS(text=description, lang='en', slow=False)   # 'zh' for Chinese
-        audio_bytes = io.BytesIO()
-        tts.write_to_fp(audio_bytes)
+        speech = tts_pipe(description)
+        audio_bytes = io.BytesIO(speech["audio"][0].tobytes())  # Convert to bytes
         audio_bytes.seek(0)
 
-    st.audio(audio_bytes, format="audio/mp3")
+    st.audio(audio_bytes, format="audio/wav", sample_rate=speech["sampling_rate"])
     st.info("🔊 Audio is playing automatically")
 
     if st.button("🔊 Speak Again"):
-        st.audio(audio_bytes, format="audio/mp3")
+        st.audio(audio_bytes, format="audio/wav", sample_rate=speech["sampling_rate"])
 
 else:
     st.info("👆 Click the camera button above to start")
 
-st.caption("Model: BLIP Image Captioning (Hugging Face) | TTS: gTTS")
+st.caption("Model: BLIP Image Captioning & MMS TTS (Hugging Face)")
